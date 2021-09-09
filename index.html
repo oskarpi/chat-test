@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Socket.IO chat</title>
+    <style>
+        body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+        #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+        #nickname-form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; top: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+        #rooms-form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; top: 3rem; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px);}
+        #rooms-select {width: 95%;}
+        #input, #nickname-input, #rooms-input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
+        #input:focus, #nickname-input:focus, #rooms-input:focus { outline: none; }
+        #form  > button, #nickname-form > button, #rooms-input{ background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
+        #users {width: 200px; height: 300px; overflow-y: scroll;  position: fixed; top: 6rem; right: 0;  list-style-type: none; margin: 0; padding: 0; border: solid #333333 1px; }
+        #users > h1 {margin: 0 0 0.5rem 0; font-size: 20px; height: fit-content; padding: 0rem 1rem;}
+        #users > li { padding: 0.5rem 1rem; }
+        #users > li:nth-child(odd) { background: #efefef; }
+        #messages { list-style-type: none; margin: 6rem 0 0 0; padding: 0; }
+        #messages > li { padding: 0.5rem 1rem; }
+        #messages > li:nth-child(odd) { background: #efefef; }
+    </style>
+</head>
+<body>
+<ul id="messages"></ul>
+<ul id="users">
+    <h1>All users:</h1>
+    <li id="user-count"></li>
+</ul>
+<form id="nickname-form" action="">
+    <input id="nickname-input" autocomplete="off" placeholder="Please enter your nickname" /><button>Enter</button>
+</form>
+<form id="rooms-form" action="">
+    <select id="rooms-select" name="rooms" required>
+        <option value="" disabled selected>Choose a room you belong to (Living room is default)</option>
+        <option value="Living room">Living room</option>
+        <option value="Kitchen">Kitchen</option>
+        <option value="Bedroom">Bedroom</option>
+        <option value="Playing room">Playing room</option>
+    </select>
+    <input id="rooms-input" type="submit">
+</form>
+
+<form id="form" action="">
+    <input id="input" autocomplete="off" placeholder="Type something..."/><button>Send</button>
+</form>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  let socket = io();
+
+  let nicknameInput = document.getElementById('nickname-input');
+  let nickname = 'anonymous' + Math.floor(Math.random() * 1000000);
+  let messages = document.getElementById('messages');
+  let users = document.getElementById('users');
+  let form = document.getElementById('form');
+  let nicknameForm = document.getElementById('nickname-form');
+  let input = document.getElementById('input');
+  let roomsForm = document.getElementById('rooms-form');
+  let roomsInput = document.getElementById('rooms-select');
+  let room = 'Living room';
+  let prevRoom = 'Living room';
+
+  socket.emit('server message', {message: `${nickname} you have joined to ${room}`});
+  socket.emit('add user', {nickname: nickname, room: room});
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    if (input.value) {
+      socket.emit('chat message', {message: input.value, room: room, nickname:nickname});
+      input.value = '';
+    }
+  });
+
+  nicknameForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    if (nicknameInput.value && nicknameInput.value !== nickname) {
+      nickname = nicknameInput.value;
+      nicknameInput.setAttribute('placeholder', nickname);
+      socket.emit('change nickname', {nickname: nickname, room: room});
+      socket.emit('server message', {message: ` you have changed your nickname to ${nickname}`});
+      nicknameInput.value = '';
+    }
+  });
+
+  roomsForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    prevRoom = room;
+    room = roomsInput.value;
+    if(prevRoom !== room){
+      messages.innerHTML = '';
+    }
+    socket.emit('goToRoom', {room: room, prevRoom: prevRoom});
+    if(prevRoom !== room){
+      socket.emit('server message', {message: `${nickname} you have joined to ${room}`});
+    }
+  })
+
+  socket.on('add user', (usersList) =>{
+    users.innerHTML = `<h1>All users:</h1><li id="user-count">Number of users on this server: ${usersList.length}</li>`;
+    usersList.forEach( (user) =>{
+    let item = document.createElement('li');
+    item.textContent = user.nickname;
+    users.appendChild(item);
+    });
+  });
+
+  socket.on('server message', (obj) =>{
+    let item = document.createElement('li');
+    item.textContent = obj.message;
+    messages.appendChild(item);
+    window.scrollTo(0, document.body.scrollHeight);
+  })
+
+  socket.on('chat message', (obj) => {
+    let item = document.createElement('li');
+    item.textContent = obj.nickname + ' says: ' + obj.message;
+    messages.appendChild(item);
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+</script>
+</body>
+</html>
